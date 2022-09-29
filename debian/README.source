@@ -1,0 +1,3 @@
+golang-mvdan-gofumpt is packaged for building gopls in golang-golang-x-tools,
+so it's intented not have golang-golang-x-tools-dev in Depends of
+golang-mvdan-gofumpt-dev, to avoid circular dependencies.

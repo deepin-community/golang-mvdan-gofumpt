@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 
 %:
-	dh $@ --builddirectory=_build --buildsystem=golang --with=golang
+	dh $@ --builddirectory=_build --buildsystem=golang
 
 execute_after_dh_auto_configure:
-	$(RM) -r $(addprefix _build/src/mvdan.cc/gofumpt/,*.go internal/diff testdata)
+	$(RM) -r $(addprefix _build/src/mvdan.cc/gofumpt/,*.go internal/diff)

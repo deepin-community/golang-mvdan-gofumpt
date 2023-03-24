@@ -1,24 +1,28 @@
 # gofumpt
 
+[![Go Reference](https://pkg.go.dev/badge/mvdan.cc/gofumpt/format.svg)](https://pkg.go.dev/mvdan.cc/gofumpt/format)
+
 	go install mvdan.cc/gofumpt@latest
 
-Enforce a stricter format than `gofmt`, while being backwards compatible. That
-is, `gofumpt` is happy with a subset of the formats that `gofmt` is happy with.
+Enforce a stricter format than `gofmt`, while being backwards compatible.
+That is, `gofumpt` is happy with a subset of the formats that `gofmt` is happy with.
 
-The tool is a modified fork of `gofmt`, so it can be used as a drop-in
-replacement. Running `gofmt` after `gofumpt` should be a no-op. For example:
+The tool is a fork of `gofmt` as of Go 1.19, and requires Go 1.18 or later.
+It can be used as a drop-in replacement to format your Go code,
+and running `gofmt` after `gofumpt` should produce no changes.
+For example:
 
 	gofumpt -l -w .
 
 Some of the Go source files in this repository belong to the Go project.
-The added formatting rules are in the `format` package.
+The [added formatting rules](#Added-rules) are implemented in the `format` package.
 
-Beyond the [added rules below](#Added-rules), the tool differs from gofmt in the
-following ways:
+Note that vendor directories are skipped unless given as explicit arguments.
+Similarly, the added rules do not apply to generated Go files unless they are
+given as explicit arguments.
 
-* Vendor directories are skipped unless given as explicit arguments
-* The added rules are not applied to generated Go files
-* The `-r` rewrite feature is removed in favor of `gofmt -r`
+Finally, note that the `-r` rewrite flag is removed in favor of `gofmt -r`,
+and the `-s` flag is hidden as it is always enabled.
 
 ### Added rules
 
@@ -41,7 +45,7 @@ func foo() {
 
 </details>
 
-No empty lines at the beginning or end of a function
+No empty lines around function bodies
 
 <details><summary><i>example</i></summary>
 
@@ -61,12 +65,18 @@ func foo() {
 
 </details>
 
-Functions using an empty line for readability should use a `) {` line instead
+Functions should separate `) {` where the indentation helps readability
 
 <details><summary><i>example</i></summary>
 
 ```
 func foo(s string,
+	i int) {
+	println("bar")
+}
+
+// With an empty line it's slightly better, but still not great.
+func bar(s string,
 	i int) {
 
 	println("bar")
@@ -75,6 +85,13 @@ func foo(s string,
 
 ```
 func foo(s string,
+	i int,
+) {
+	println("bar")
+}
+
+// With an empty line it's slightly better, but still not great.
+func bar(s string,
 	i int,
 ) {
 	println("bar")
@@ -385,50 +402,35 @@ var _ = map[string]string{
 
 </details>
 
-Remove unnecessary empty lines from interfaces
+Field lists should not have leading or trailing empty lines
 
 <details><summary><i>example</i></summary>
 
 ```
-type i interface {
+type Person interface {
 
-	// comment for a
-	a(x int) int
+	Name() string
 
-	// comment between a and b
+	Age() int
 
-	// comment for b
-	b(x int) int
+}
 
-	// comment between b and c
+type ZeroFields struct {
 
-	c(x int) int
-
-	d(x int) int
-
-	// comment for e
-	e(x int) int
+	// No fields are needed here.
 
 }
 ```
 
 ```
-type i interface {
-	// comment for a
-	a(x int) int
+type Person interface {
+	Name() string
 
-	// comment between a and b
+	Age() int
+}
 
-	// comment for b
-	b(x int) int
-
-	// comment between b and c
-
-	c(x int) int
-	d(x int) int
-
-	// comment for e
-	e(x int) int
+type ZeroFields struct {
+	// No fields are needed here.
 }
 ```
 
@@ -495,13 +497,11 @@ When a window asks for settings, you can enter the following:
 * Working directory: `$ProjectFileDir$`
 * Environment variables: `GOROOT=$GOROOT$;GOPATH=$GOPATH$;PATH=$GoBinDirs$`
 
-To avoid unecessary runs, you should disable all checkboxes in the *Advanced* section.
+To avoid unnecessary runs, you should disable all checkboxes in the *Advanced* section.
 
 #### Vim-go
 
-Ensure you are at least running version
-[v1.24](https://github.com/fatih/vim-go/blob/master/CHANGELOG.md#v124---september-15-2020),
-and set up `gopls` for formatting code with `gofumpt`:
+To configure `gopls` to use `gofumpt`:
 
 ```vim
 let g:go_fmt_command="gopls"
@@ -510,11 +510,46 @@ let g:go_gopls_gofumpt=1
 
 #### Govim
 
-With a [new enough version of govim](https://github.com/govim/govim/pull/1005),
-simply configure `gopls` to use `gofumpt`:
+To configure `gopls` to use `gofumpt`:
 
 ```vim
 call govim#config#Set("Gofumpt", 1)
+```
+
+#### Neovim
+
+When using [`lspconfig`](https://github.com/neovim/nvim-lspconfig), pass the `gofumpt` setting to `gopls`:
+
+```lua
+require('lspconfig').gopls.setup({
+    settings = {
+        gopls = {
+            gofumpt = true
+        }
+    }
+})
+```
+
+#### Emacs
+
+For [lsp-mode](https://emacs-lsp.github.io/lsp-mode/) users on version 8.0.0 or higher:
+
+```elisp
+(setq lsp-go-use-gofumpt t)
+```
+
+For users of `lsp-mode` before `8.0.0`:
+
+```elisp
+(lsp-register-custom-settings
+ '(("gopls.gofumpt" t)))
+```
+
+For [eglot](https://github.com/joaotavora/eglot) users:
+
+```elisp
+(setq-default eglot-workspace-configuration
+ '((:gopls . ((gofumpt . t)))))
 ```
 
 #### Sublime Text
@@ -558,13 +593,14 @@ drop-in replacement in editors and scripts.
 > Why are my module imports being grouped with standard library imports?
 
 Any import paths that don't start with a domain name like `foo.com` are
-effectively reserved by the Go toolchain. Otherwise, adding new standard library
-packages like `embed` would be a breaking change. See https://github.com/golang/go/issues/32819.
+effectively [reserved by the Go toolchain](https://github.com/golang/go/issues/32819).
+Third party modules should either start with a domain name,
+even a local one like `foo.local`, or use [a reserved path prefix](https://github.com/golang/go/issues/37641).
 
-Third party modules should use domain names to avoid conflicts.
-If your module is meant for local use only, you can use `foo.local`.
-For small example or test modules, `example/...` and `test/...` may be reserved
-if a proposal is accepted; see https://github.com/golang/go/issues/37641.
+For backwards compatibility with modules set up before these rules were clear,
+`gofumpt` will treat any import path sharing a prefix with the current module
+path as third party. For example, if the current module is `mycorp/mod1`, then
+all import paths in `mycorp/...` will be considered third party.
 
 > How can I use `gofumpt` if I already use `goimports` to replace `gofmt`?
 
